@@ -98,24 +98,234 @@ void set_unit_size() {
     }
 }
 
+/* Task 1a: Load Into Memory */
 void load_into_memory() {
-    printf("Not implemented yet\n");
+    char input[256];
+    unsigned int location;
+    int length;
+    FILE *fp;
+    
+    /* Check if file_name is empty */
+    if (strlen(file_name) == 0) {
+        fprintf(stderr, "Error: No file name set. Use option 1 first.\n");
+        return;
+    }
+    
+    /* Open file for reading */
+    fp = fopen(file_name, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: Cannot open file '%s' for reading.\n", file_name);
+        return;
+    }
+    
+    /* Prompt for location (hex) and length (decimal) */
+    printf("Please enter <location> <length>\n");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        fclose(fp);
+        return;
+    }
+    
+    if (sscanf(input, "%x %d", &location, &length) != 2) {
+        fprintf(stderr, "Error: Invalid input format.\n");
+        fclose(fp);
+        return;
+    }
+    
+    /* Debug output */
+    if (debug_mode) {
+        fprintf(stderr, "Debug: file_name: %s, location: 0x%x, length: %d\n", 
+                file_name, location, length);
+    }
+    
+    /* Check buffer size */
+    if (length * unit_size > 10000) {
+        fprintf(stderr, "Error: Data size exceeds buffer size.\n");
+        fclose(fp);
+        return;
+    }
+    
+    /* Seek to location and read data */
+    if (fseek(fp, location, SEEK_SET) != 0) {
+        fprintf(stderr, "Error: Cannot seek to location 0x%x.\n", location);
+        fclose(fp);
+        return;
+    }
+    
+    mem_count = fread(mem_buf, unit_size, length, fp);
+    fclose(fp);
+    
+    printf("Loaded %zu units into memory\n", mem_count);
 }
 
+/* Task 1b: Toggle Display Mode */
 void toggle_display_mode() {
-    printf("Not implemented yet\n");
+    if (display_flag) {
+        display_flag = 0;
+        printf("Decimal display flag now off, hexadecimal representation\n");
+    } else {
+        display_flag = 1;
+        printf("Decimal display flag now on, decimal representation\n");
+    }
 }
 
+/* Task 1c: Memory Display */
 void memory_display() {
-    printf("Not implemented yet\n");
+    char input[256];
+    unsigned int addr;
+    int u;
+    unsigned char *ptr;
+    
+    /* Prompt for address (hex) and length (decimal) */
+    printf("Enter address and length\n");
+    printf("> ");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        return;
+    }
+    
+    if (sscanf(input, "%x %d", &addr, &u) != 2) {
+        fprintf(stderr, "Error: Invalid input format.\n");
+        return;
+    }
+    
+    /* If addr is 0, use mem_buf, otherwise use the virtual address */
+    if (addr == 0) {
+        ptr = mem_buf;
+    } else {
+        ptr = (unsigned char *)addr;
+    }
+    
+    /* Print header */
+    if (display_flag) {
+        printf("Decimal\n");
+        printf("=======\n");
+    } else {
+        printf("Hexadecimal\n");
+        printf("===========\n");
+    }
+    
+    /* Print units */
+    for (int i = 0; i < u; i++) {
+        unsigned int val = 0;
+        
+        /* Read unit_size bytes and construct value (little endian) */
+        for (int j = 0; j < unit_size; j++) {
+            val |= (ptr[i * unit_size + j] << (j * 8));
+        }
+        
+        /* Print based on display mode and unit size */
+        if (display_flag) {
+            /* Decimal display */
+            printf(dec_formats[unit_size - 1], val);
+        } else {
+            /* Hexadecimal display */
+            printf(hex_formats[unit_size - 1], val);
+        }
+    }
+    printf("\n");
 }
 
+/* Task 1d: Save Into File */
 void save_into_file() {
-    printf("Not implemented yet\n");
+    char input[256];
+    unsigned int source_addr;
+    unsigned int target_location;
+    int length;
+    FILE *fp;
+    unsigned char *ptr;
+    
+    /* Check if file_name is empty */
+    if (strlen(file_name) == 0) {
+        fprintf(stderr, "Error: No file name set. Use option 1 first.\n");
+        return;
+    }
+    
+    /* Prompt for source-address, target-location, and length */
+    printf("Please enter <source-address> <target-location> <length>\n");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        return;
+    }
+    
+    if (sscanf(input, "%x %x %d", &source_addr, &target_location, &length) != 3) {
+        fprintf(stderr, "Error: Invalid input format.\n");
+        return;
+    }
+    
+    /* Debug output */
+    if (debug_mode) {
+        fprintf(stderr, "Debug: source_addr: 0x%x, target_location: 0x%x, length: %d\n",
+                source_addr, target_location, length);
+    }
+    
+    /* Determine source pointer */
+    if (source_addr == 0) {
+        ptr = mem_buf;
+    } else {
+        ptr = (unsigned char *)source_addr;
+    }
+    
+    /* Open file for writing (not truncating) */
+    fp = fopen(file_name, "r+b");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: Cannot open file '%s' for writing.\n", file_name);
+        return;
+    }
+    
+    /* Check if target_location is within file size */
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    if (target_location > file_size) {
+        fprintf(stderr, "Error: Target location 0x%x exceeds file size.\n", target_location);
+        fclose(fp);
+        return;
+    }
+    
+    /* Seek to target location and write data */
+    if (fseek(fp, target_location, SEEK_SET) != 0) {
+        fprintf(stderr, "Error: Cannot seek to location 0x%x.\n", target_location);
+        fclose(fp);
+        return;
+    }
+    
+    size_t written = fwrite(ptr, unit_size, length, fp);
+    fclose(fp);
+    
+    if (written != length) {
+        fprintf(stderr, "Warning: Only wrote %zu units out of %d.\n", written, length);
+    }
 }
 
+/* Task 1e: Memory Modify */
 void memory_modify() {
-    printf("Not implemented yet\n");
+    char input[256];
+    unsigned int location;
+    unsigned int val;
+    
+    /* Prompt for location and val (both in hex) */
+    printf("Please enter <location> <val>\n");
+    if (fgets(input, sizeof(input), stdin) == NULL) {
+        return;
+    }
+    
+    if (sscanf(input, "%x %x", &location, &val) != 2) {
+        fprintf(stderr, "Error: Invalid input format.\n");
+        return;
+    }
+    
+    /* Debug output */
+    if (debug_mode) {
+        fprintf(stderr, "Debug: location: 0x%x, val: 0x%x\n", location, val);
+    }
+    
+    /* Check if location is valid */
+    if (location + unit_size > sizeof(mem_buf)) {
+        fprintf(stderr, "Error: Location 0x%x exceeds buffer size.\n", location);
+        return;
+    }
+    
+    /* Write value to memory in little endian */
+    for (int i = 0; i < unit_size; i++) {
+        mem_buf[location + i] = (val >> (i * 8)) & 0xFF;
+    }
 }
 
 void quit_program() {
