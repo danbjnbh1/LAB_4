@@ -1,0 +1,92 @@
+chmod +x deep_thought
+
+# Show the problem
+
+TASK 2
+Issue: Entry point (offset 0x18) pointed to hacked function (0x8048464) instead of _start (0x08048350), causing improper initialization
+Solution: Used hexeditplus to change entry point from 0x8048464 to 0x8048350, fixing program startup sequence
+
+./deep_thought 
+
+readelf -h deep_thought | grep "Entry"
+
+//   Entry point address:               0x8048464 -> it's not _start
+
+readelf -s deep_thought | grep _start
+
+// 61: 08048350     0 FUNC    GLOBAL DEFAULT   13 _start
+
+./hexeditplus
+1
+deep_thought
+2
+4
+3
+18 1
+7
+0 8048350
+6
+0 18 1
+8
+
+TASK 3
+
+Issue: main function contained malicious/offensive code
+Solution: Calculated main's file offset (0x41d) and replaced first byte with ret instruction (0xc3), neutralizing the function
+
+# Show what it does originally
+./offensive                              # Does something offensive
+
+# Find main
+readelf -s offensive | grep " main"      # Address: 0x0804841d, Size: 23
+readelf -S offensive | grep .text        # Calculate offset: 0x41d
+
+# Hack it (neutralize main)
+./hexeditplus
+1
+offensive
+2
+1
+3
+41d 23
+7
+0 c3
+6
+0 41d 1
+8
+
+# Verify
+./offensive                              # Does nothing now!
+
+
+TASK 4
+Issue: count_digits function had a bug counting digits incorrectly
+Solution: Wrote correct count_digits in task4.c, compiled it, then used hexeditplus to copy the correct function (62 bytes from offset 0x11cd) over the buggy one (at offset 0x47d in ntsc)
+
+# Show the bug
+./ntsc 0123456789                        # Wrong output!
+
+# Already have corrected version compiled
+ls task4                                 # Your fixed version
+
+# Find offsets
+readelf -s task4 | grep count_digits     # 0x11cd, size 62
+readelf -s ntsc | grep count_digits      # offset 0x47d
+
+# Patch it
+./hexeditplus
+1
+task4
+2
+1
+3
+11cd 62
+1
+ntsc
+6
+0 47d 62
+8
+
+# Verify
+./ntsc 0123456789                        # Outputs: 10 ✓
+./ntsc aabbaba123baacca                  # Outputs: 3 ✓
