@@ -204,3 +204,4 @@ quitting
 - ✅ Debug info printed before menu when debug mode is on
 - ✅ All debug messages go to stderr
 
+
